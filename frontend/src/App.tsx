@@ -13,6 +13,8 @@ import Calendar from './pages/Calendar';
 import BulkOperations from './pages/BulkOperations';
 import Analytics from './pages/Analytics';
 import DocumentApprovals from './pages/DocumentApprovals';
+import EFiling from './pages/EFiling';
+import EFilingStatus from './pages/EFilingStatus';
 import Layout from './components/Layout';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -50,6 +52,8 @@ function App() {
           <Route path="bulk" element={<BulkOperations />} />
           <Route path="analytics" element={<Analytics />} />
           <Route path="approvals" element={<DocumentApprovals />} />
+          <Route path="efiling/:id" element={<EFiling />} />
+          <Route path="efiling-status" element={<EFilingStatus />} />
         </Route>
       </Routes>
     </Router>

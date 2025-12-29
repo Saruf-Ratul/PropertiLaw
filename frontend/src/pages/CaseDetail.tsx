@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import { format } from 'date-fns';
 import { useAuthStore } from '../store/authStore';
@@ -206,6 +206,14 @@ export default function CaseDetail() {
                     >
                       {generatingDoc ? 'Generating...' : 'Generate'}
                     </button>
+                    {caseData.status === 'OPEN' && (
+                      <Link
+                        to={`/efiling/${caseData.id}`}
+                        className="text-sm rounded-md bg-green-600 px-3 py-1 text-white hover:bg-green-500"
+                      >
+                        E-File
+                      </Link>
+                    )}
                   </div>
                 )}
               </div>

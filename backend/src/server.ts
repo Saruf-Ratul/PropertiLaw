@@ -17,6 +17,8 @@ import { settingsRoutes } from './routes/settings';
 import { efilingRoutes } from './routes/efiling';
 import { bulkRoutes } from './routes/bulk';
 import { documentApprovalRoutes } from './routes/documentApproval';
+import { courtConfigRoutes } from './routes/courtConfig';
+import { efilingStatusRoutes } from './routes/efilingStatus';
 import { initializeScheduledReports } from './services/scheduledReports';
 
 dotenv.config();
@@ -53,6 +55,8 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/efiling', efilingRoutes);
 app.use('/api/bulk', bulkRoutes);
 app.use('/api/approvals', documentApprovalRoutes);
+app.use('/api/courts', courtConfigRoutes);
+app.use('/api/efiling-status', efilingStatusRoutes);
 
 // Error handling
 app.use(errorHandler);

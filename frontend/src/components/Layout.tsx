@@ -11,7 +11,8 @@ import {
   ArrowRightOnRectangleIcon,
   DocumentArrowUpIcon,
   PresentationChartLineIcon,
-  CheckCircleIcon
+  CheckCircleIcon,
+  PaperClipIcon
 } from '@heroicons/react/24/outline';
 
 const navigation = [
@@ -22,6 +23,7 @@ const navigation = [
   { name: 'Bulk Operations', href: '/bulk', icon: DocumentArrowUpIcon, firmOnly: true },
   { name: 'Analytics', href: '/analytics', icon: PresentationChartLineIcon },
   { name: 'Approvals', href: '/approvals', icon: CheckCircleIcon },
+  { name: 'E-Filing Status', href: '/efiling-status', icon: PaperClipIcon, firmOnly: true },
   { name: 'Clients', href: '/clients', icon: UserGroupIcon, firmOnly: true },
   { name: 'Reports', href: '/reports', icon: ChartBarIcon, firmOnly: true },
   { name: 'Users', href: '/users', icon: UsersIcon, firmOnly: true },

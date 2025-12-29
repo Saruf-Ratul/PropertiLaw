@@ -166,5 +166,11 @@ export function initializeScheduledReports() {
   });
 
   console.log('Scheduled reports initialized');
+  
+  // Initialize e-filing polling if in production
+  if (process.env.NODE_ENV === 'production') {
+    const { EFilingPollingService } = await import('./efilingPolling');
+    EFilingPollingService.initializePolling();
+  }
 }
 

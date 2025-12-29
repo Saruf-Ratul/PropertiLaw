@@ -1,0 +1,484 @@
+// PropertiLaw Database Schema
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  LAW_FIRM_ADMIN
+  ATTORNEY
+  PARALEGAL
+  CLIENT_ADMIN
+  CLIENT_USER
+}
+
+enum CaseStatus {
+  INTAKE
+  OPEN
+  FILED
+  HEARING_SCHEDULED
+  JUDGMENT
+  AWAITING_WRIT
+  WRIT_ISSUED
+  CLOSED
+}
+
+enum CaseType {
+  NON_PAYMENT
+  HOLDOVER
+  VIOLATION
+  OTHER
+}
+
+enum DocumentType {
+  NOTICE_TO_QUIT
+  COMPLAINT
+  COVER_SHEET
+  FILING_FEE_WAIVER
+  AFFIDAVIT_OF_SERVICE
+  COURT_ORDER
+  JUDGMENT
+  WRIT_OF_POSSESSION
+  CORRESPONDENCE
+  LEASE
+  PAYMENT_LEDGER
+  OTHER
+}
+
+enum DocumentApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  NOT_REQUIRED
+}
+
+enum IntegrationType {
+  RENTMANAGER_API
+  YARDI_API
+  YARDI_SFTP
+}
+
+enum IntegrationStatus {
+  PENDING
+  CONNECTED
+  ERROR
+  DISABLED
+}
+
+// Law Firm entity
+model LawFirm {
+  id          String   @id @default(uuid())
+  name        String
+  address     String?
+  phone       String?
+  email       String?
+  logoUrl     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       FirmUser[]
+  clients     PropertyMgmtClient[]
+  settings    FirmSettings?
+
+  @@map("law_firms")
+}
+
+// Firm Settings
+model FirmSettings {
+  id              String   @id @default(uuid())
+  lawFirmId       String   @unique
+  lawFirm         LawFirm   @relation(fields: [lawFirmId], references: [id], onDelete: Cascade)
+  
+  defaultNotificationEmail String?
+  syncSchedule    String?  @default("0 2 * * *") // Cron for nightly sync
+  dataRetentionYears Int?  @default(7)
+  brandingLogo    String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("firm_settings")
+}
+
+// Firm User (Law Firm Staff)
+model FirmUser {
+  id          String   @id @default(uuid())
+  email       String   @unique
+  passwordHash String
+  firstName   String
+  lastName    String
+  role        UserRole
+  isActive    Boolean  @default(true)
+  
+  lawFirmId   String
+  lawFirm     LawFirm  @relation(fields: [lawFirmId], references: [id], onDelete: Cascade)
+  
+  assignedCases Case[] @relation("AssignedAttorney")
+  approvedDocuments Document[] @relation("DocumentApprover")
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  lastLogin   DateTime?
+
+  auditLogs   AuditLog[]
+  comments    Comment[]
+  documents   Document[]
+
+  @@map("firm_users")
+}
+
+// Property Management Client
+model PropertyMgmtClient {
+  id              String   @id @default(uuid())
+  name            String
+  primaryContact  String?
+  email           String?
+  phone           String?
+  address         String?
+  
+  lawFirmId       String
+  lawFirm         LawFirm  @relation(fields: [lawFirmId], references: [id], onDelete: Cascade)
+  
+  isActive        Boolean  @default(true)
+  
+  users           ClientUser[]
+  properties      Property[]
+  cases           Case[]
+  integrations    Integration[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("property_mgmt_clients")
+}
+
+// Client User (Property Manager)
+model ClientUser {
+  id          String   @id @default(uuid())
+  email       String   @unique
+  passwordHash String
+  firstName   String
+  lastName    String
+  role        UserRole @default(CLIENT_USER)
+  isActive    Boolean  @default(true)
+  
+  clientId    String
+  client      PropertyMgmtClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  lastLogin   DateTime?
+
+  comments    Comment[]
+  documents   Document[]
+
+  @@map("client_users")
+}
+
+// Property
+model Property {
+  id          String   @id @default(uuid())
+  externalId  String?  // ID from PMS
+  name        String
+  address     String
+  city        String
+  state       String
+  zipCode     String
+  county      String?
+  jurisdiction String? // For court determination
+  
+  clientId    String
+  client      PropertyMgmtClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  units       Unit[]
+  cases       Case[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  lastSynced  DateTime?
+
+  @@unique([externalId, clientId])
+  @@map("properties")
+}
+
+// Unit
+model Unit {
+  id          String   @id @default(uuid())
+  externalId  String?  // ID from PMS
+  unitNumber  String
+  propertyId  String
+  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  
+  tenants     Tenant[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  lastSynced  DateTime?
+
+  @@unique([externalId, propertyId])
+  @@map("units")
+}
+
+// Tenant
+model Tenant {
+  id          String   @id @default(uuid())
+  externalId  String?  // ID from PMS
+  firstName   String
+  lastName    String
+  email       String?
+  phone       String?
+  
+  unitId      String?
+  unit        Unit?    @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  
+  propertyId  String?
+  property    Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  
+  clientId    String
+  client      PropertyMgmtClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  leaseStartDate DateTime?
+  leaseEndDate   DateTime?
+  currentBalance Decimal? @db.Decimal(10, 2)
+  isActive    Boolean  @default(true)
+  
+  cases       CaseTenant[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  lastSynced  DateTime?
+
+  @@unique([externalId, clientId])
+  @@map("tenants")
+}
+
+// Case
+model Case {
+  id              String   @id @default(uuid())
+  caseNumber      String?  @unique // Internal case number
+  courtCaseNumber String?  // Court-assigned case number
+  
+  status          CaseStatus @default(INTAKE)
+  type            CaseType
+  
+  clientId        String
+  client          PropertyMgmtClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  propertyId      String
+  property        Property @relation(fields: [propertyId], references: [id])
+  
+  assignedAttorneyId String?
+  assignedAttorney FirmUser? @relation("AssignedAttorney", fields: [assignedAttorneyId], references: [id], onDelete: SetNull)
+  
+  tenants         CaseTenant[]
+  
+  // Case details
+  reason          String   // Reason for eviction
+  amountOwed      Decimal? @db.Decimal(10, 2)
+  monthsOwed      Int?
+  
+  // Dates
+  noticeServedDate DateTime?
+  filedDate       DateTime?
+  hearingDate     DateTime?
+  judgmentDate    DateTime?
+  writIssuedDate  DateTime?
+  closedDate      DateTime?
+  
+  // Jurisdiction
+  jurisdiction    String
+  court           String?
+  
+  // Compliance flags
+  caresActCompliant Boolean @default(false)
+  rentControlStatus String?
+  
+  // Service of Process
+  serviceMethod   String?  // e.g., "Personal", "Certified Mail", "Posting"
+  serviceDate     DateTime?
+  serviceAffidavitId String? // Document ID for affidavit
+  
+  documents       Document[]
+  comments        Comment[]
+  events          CaseEvent[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("cases")
+}
+
+// Case-Tenant join table (many-to-many)
+model CaseTenant {
+  id        String   @id @default(uuid())
+  caseId    String
+  case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  isPrimary Boolean  @default(true)
+  
+  createdAt DateTime @default(now())
+
+  @@unique([caseId, tenantId])
+  @@map("case_tenants")
+}
+
+// Document
+model Document {
+  id          String       @id @default(uuid())
+  caseId      String
+  case        Case         @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  
+  type        DocumentType
+  name        String
+  fileName    String       // Stored filename
+  filePath    String       // Path to stored file
+  fileSize    Int          // Size in bytes
+  mimeType    String
+  
+  isGenerated Boolean      @default(false)
+  templateId  String?      // If generated from template
+  
+  uploadedById String?
+  uploadedBy  FirmUser?    @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  
+  uploadedByClientId String?
+  uploadedByClient   ClientUser? @relation(fields: [uploadedByClientId], references: [id], onDelete: SetNull)
+  
+  version     Int          @default(1)
+  
+  // Approval workflow
+  approvalStatus DocumentApprovalStatus @default(NOT_REQUIRED)
+  approvalRequired Boolean @default(false)
+  approvedById String?
+  approvedBy   FirmUser? @relation("DocumentApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt   DateTime?
+  rejectionReason String? @db.Text
+  
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("documents")
+}
+
+// Comment/Note
+model Comment {
+  id          String   @id @default(uuid())
+  caseId      String
+  case        Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  
+  content     String   @db.Text
+  isInternal  Boolean  @default(true) // Only law firm sees if true
+  
+  authorId    String?  // Could be firm user or client user
+  authorType  String?  // "firm" or "client"
+  
+  firmUserId  String?
+  firmUser    FirmUser? @relation(fields: [firmUserId], references: [id], onDelete: SetNull)
+  
+  clientUserId String?
+  clientUser   ClientUser? @relation(fields: [clientUserId], references: [id], onDelete: SetNull)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("comments")
+}
+
+// Case Event/Task
+model CaseEvent {
+  id          String   @id @default(uuid())
+  caseId      String
+  case        Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  
+  eventType   String   // e.g., "NOTICE_SERVED", "FILED", "HEARING", "JUDGMENT"
+  title       String
+  description String?  @db.Text
+  eventDate   DateTime?
+  dueDate     DateTime?
+  isCompleted Boolean  @default(false)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("case_events")
+}
+
+// Integration (PMS connections)
+model Integration {
+  id          String           @id @default(uuid())
+  clientId    String
+  client      PropertyMgmtClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  type        IntegrationType
+  status      IntegrationStatus @default(PENDING)
+  
+  // API credentials (encrypted)
+  apiKey      String?
+  apiSecret   String?
+  apiUrl      String?
+  
+  // SFTP credentials (for Yardi)
+  sftpHost    String?
+  sftpPort    Int?
+  sftpUser    String?
+  sftpPassword String?
+  sftpPath    String?
+  
+  lastSyncAt  DateTime?
+  lastSyncStatus String?
+  lastSyncError  String?  @db.Text
+  
+  syncSchedule String?    @default("0 2 * * *")
+  
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("integrations")
+}
+
+// Document Template
+model DocumentTemplate {
+  id          String   @id @default(uuid())
+  name        String
+  type        DocumentType
+  jurisdiction String  // State or county code
+  version     Int      @default(1)
+  
+  templatePath String  // Path to template file
+  mergeFields  Json?   // Available merge fields
+  
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("document_templates")
+}
+
+// Audit Log
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String?
+  userType    String?  // "firm" or "client"
+  firmUserId  String?
+  firmUser    FirmUser? @relation(fields: [firmUserId], references: [id], onDelete: SetNull)
+  
+  action      String   // e.g., "CASE_CREATED", "DOCUMENT_GENERATED", "STATUS_CHANGED"
+  entityType  String   // e.g., "Case", "Document"
+  entityId    String?
+  details     Json?    // Additional details
+  
+  ipAddress   String?
+  userAgent   String?
+  
+  createdAt   DateTime @default(now())
+
+  @@map("audit_logs")
+}
+

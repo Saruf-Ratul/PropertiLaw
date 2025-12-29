@@ -1,0 +1,18 @@
+{
+  "name": "propertilaw-platform",
+  "version": "1.0.0",
+  "description": "Legal case management platform for landlord-tenant eviction cases",
+  "scripts": {
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build:backend": "cd backend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "db:migrate": "cd backend && npx prisma migrate dev",
+    "db:generate": "cd backend && npx prisma generate",
+    "db:studio": "cd backend && npx prisma studio"
+  },
+  "keywords": ["legal", "case-management", "eviction", "property-management"],
+  "author": "",
+  "license": "ISC"
+}
+
